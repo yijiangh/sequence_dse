@@ -133,6 +133,9 @@ def retrace_sequence(visited, current_state, horizon=INF):
     previous_elements = retrace_sequence(visited, prev_state, horizon=horizon-1)
     return previous_elements + [(element, max_displacement)]
 
+def compute_path_cost(plan):
+    return sum([abs(max_disp) for _, max_disp in plan])
+
 #####################################
 
 def reverse_element(element):
@@ -299,7 +302,7 @@ def get_search_heuristic_fn(element_from_id, node_points, ground_nodes, heuristi
 def add_successors(queue, all_elements, grounded_nodes, heuristic_fn, built_elements, incoming_from_element=None, verbose=False):
     remaining = all_elements - built_elements
     num_remaining = len(remaining) - 1
-    assert 0 <= num_remaining
+    assert 0 <= num_remaining, num_remaining
     candidate_elements = list(compute_candidate_elements(all_elements, grounded_nodes, built_elements))
     # TODO make incoming_from_element safe
 #    if verbose: print('add successors: candidate elements: {}'.format(candidate_elements))
@@ -322,7 +325,7 @@ RECORD_BT = True
 RECORD_CONSTRAINT_VIOLATION = True
 
 def progression_sequencing(model, heuristic='z_distance', stiffness=True, trans_tol=DEFAULT_TRANS_TOL, 
-        partial_orders=None, verbose=False, backtrack_limit=INF, max_time=INF):
+        partial_orders=None, verbose=False, backtrack_limit=INF, max_time=INF, optimize=True):
     start_time = time.time()
     
     ## * prepare data
@@ -374,7 +377,7 @@ def progression_sequencing(model, heuristic='z_distance', stiffness=True, trans_
         return cur_data
     # end snapshot
     #############################################
-    
+    solutions = [] 
     while queue and (time.time() - start_time < max_time) :
         bias, built_elements, directed = heapq.heappop(queue)
         num_remaining = len(all_elements) - len(built_elements)
@@ -424,7 +427,11 @@ def progression_sequencing(model, heuristic='z_distance', stiffness=True, trans_
         if all_elements <= next_built_elements:
             min_remaining = 0
             plan = retrace_sequence(visited, next_built_elements)
-            break
+            solutions.append(plan)
+            if not optimize:
+                break
+            else:
+                continue
 
         # * continue to the next search level, add candidates to queue
         add_successors(queue, all_elements, ground_nodes, heuristic_fn, next_built_elements, 
@@ -442,7 +449,8 @@ def progression_sequencing(model, heuristic='z_distance', stiffness=True, trans_
         'backtrack_history': bt_data,
         'constraint_violation_history': cons_data,
     }
-    return plan, data, snapshot_data
+    solutions = sorted(solutions, key=lambda path: compute_path_cost(path))
+    return solutions, data, snapshot_data
 
 
 ############################
@@ -455,17 +463,18 @@ _partial_orders = tree_to_list(partial_orders, lambda x:x) if partial_orders.Dat
 print(_partial_orders)
 
 nodal_translation_tol = nodal_translation_tol or 5e-2 # meter
-plan, data, snapshot_data = progression_sequencing(model, heuristic=heuristic, trans_tol=nodal_translation_tol, 
-    stiffness=check_stiffness, verbose=verbose, max_time=max_time, partial_orders=_partial_orders)
+solutions, data, snapshot_data = progression_sequencing(model, heuristic=heuristic, trans_tol=nodal_translation_tol, 
+    stiffness=check_stiffness, verbose=verbose, max_time=max_time, partial_orders=_partial_orders, optimize=optimize)
 
-print data
-print 'Saved snapshot states (maximal stored state {}): BT state #{} | constraint violation state #{}'.format(
-    MAX_STATES_STORED, len(snapshot_data['backtrack_history']), len(snapshot_data['constraint_violation_history']))
+print(data)
+print('Saved snapshot states (maximal stored state {}): BT state #{} | constraint violation state #{}'.format(
+    MAX_STATES_STORED, len(snapshot_data['backtrack_history']), len(snapshot_data['constraint_violation_history'])))
 
 id_from_element = get_id_from_element_from_model(model)
 all_elements = frozenset(id_from_element.keys())
-if plan is not None:
-    print('Plan found!')
+if len(solutions) != 0:
+    print('{} plan found!'.format(len(solutions)))
+    plan = solutions[0]
     plan = [[id_from_element[e], max_disp] for (e, max_disp) in plan]
     plan = list_to_tree(plan, source=[])
 else:
