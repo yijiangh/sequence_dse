@@ -1,0 +1,3 @@
+[submodule "external/grasshopper-python-comm"]
+	path = external/grasshopper-python-comm
+	url = https://github.com/danhaive/grasshopper-python-comm.git
