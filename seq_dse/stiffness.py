@@ -13,7 +13,7 @@ from pyconmech.frame_analysis import GravityLoad, Node, Element, Support, Materi
 from seq_dse.utils import check_connected, compute_z_distance, find_grounded_elements
 from seq_dse.parsing import get_fem_element_from_bar_id_from_model
 
-TRANS_TOL = 0.001 # 0.0005
+TRANS_TOL = 0.02 # 0.0005
 ROT_TOL = np.inf # 5 * np.pi / 180
 
 ####################################
@@ -164,33 +164,42 @@ def plan_stiffness(model, elements, connectors, grounded_nodes, existing_element
         checker, fem_element_from_bar_id = create_stiffness_checker_from_model(model, trans_tol=trans_tol)
     grounded_elements = find_grounded_elements(elements, grounded_nodes)
 
-    # all_elements = frozenset(element_from_index)
+    all_elements = frozenset(list(elements))
     remaining_elements = frozenset(existing_elements)
     min_remaining = len(remaining_elements)
-    max_bt = stiffness_failures = 0
+    num_evaluated = max_backtrack = stiffness_failures = 0
     queue = [(None, frozenset(), [])]
     while queue and (pp.elapsed_time(start_time) < max_time):
         # TODO pop position and try distance heuristic
-        _, printed, sequence = heapq.heappop(queue)
-        num_remaining = len(remaining_elements) - len(printed)
+        _, built_elements, sequence = heapq.heappop(queue)
+        element = sequence[-1] if sequence else None
+        num_evaluated += 1
+        num_remaining = len(remaining_elements) - len(built_elements)
         backtrack = num_remaining - min_remaining
-        max_bt = max(max_bt, backtrack)
+        max_backtrack = max(max_backtrack, backtrack)
         if max_backtrack < backtrack:
             break # continue
 
+        if verbose:
+            print('Iteration: {} | Min Remain: {} | Built: {}/{} | Element: {} | Backtrack: {} | Stiffness failures: {} | Time: {:.3f}'.format(
+                num_evaluated, min_remaining, len(built_elements), len(all_elements), element, backtrack, stiffness_failures, pp.elapsed_time(start_time)))
+
         # * check constraints
-        if not check_connected(connectors, grounded_elements, printed):
+        if not check_connected(connectors, grounded_elements, built_elements):
+            print('connectivity fails')
             continue
-        if stiffness and not test_stiffness(elements, connectors, grounded_nodes, printed, checker=checker, fem_element_from_bar_id=fem_element_from_bar_id, verbose=verbose):
+        if stiffness and not test_stiffness(model, built_elements, checker=checker, 
+            fem_element_from_bar_id=fem_element_from_bar_id, verbose=verbose):
             stiffness_failures += 1
+            print('stiffness fails')
             continue
 
-        if printed == remaining_elements:
+        if built_elements == remaining_elements:
             # * Done!
             #from extrusion.visualization import draw_ordered
             # distance = compute_sequence_distance(node_points, sequence, start=initial_position, end=initial_position)
             cprint('Plan-stiffness success! Elements: {}, max BT: {}, stiffness failure: {}, Time: {:.3f}sec'.format(
-                len(sequence), max_bt, stiffness_failures, pp.elapsed_time(start_time))) #Distance: {:.3f}m,
+                len(sequence), max_backtrack, stiffness_failures, pp.elapsed_time(start_time))) #Distance: {:.3f}m,
             #local_search(extrusion_path, element_from_id, node_points, ground_nodes, checker, sequence,
             #             initial_position=initial_position, stiffness=stiffness, max_time=INF)
             #draw_ordered(sequence, node_points)
@@ -198,8 +207,8 @@ def plan_stiffness(model, elements, connectors, grounded_nodes, existing_element
             return sequence
 
         # * add successors
-        for element in pp.randomize(remaining_elements - printed):
-            new_printed = printed | {element}
+        for element in pp.randomize(remaining_elements - built_elements):
+            new_printed = built_elements | {element}
             new_sequence = sequence + [element]
             num_remaining = len(remaining_elements) - len(new_printed)
             min_remaining = min(min_remaining, num_remaining)
