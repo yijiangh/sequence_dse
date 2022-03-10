@@ -1,0 +1,7 @@
+compas==1.14.1
+pyconmech
+pybullet_planning>=0.6.0
+gurobipy
+#
+termcolor
+colorlog
