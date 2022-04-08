@@ -1,0 +1,362 @@
+{
+ "nodes": [
+  {
+   "node_ind": 0, 
+   "point": [
+    4.5712914060014915, 
+    -0.85717714849669979, 
+    -2.0001472612241793
+   ], 
+   "is_grounded": false
+  }, 
+  {
+   "node_ind": 1, 
+   "point": [
+    0.0, 
+    -2.0, 
+    -2.0
+   ], 
+   "is_grounded": true
+  }, 
+  {
+   "node_ind": 2, 
+   "point": [
+    4.5712914060010688, 
+    0.8571771484970232, 
+    -2.0001472612241846
+   ], 
+   "is_grounded": false
+  }, 
+  {
+   "node_ind": 3, 
+   "point": [
+    0.0, 
+    2.0, 
+    -2.0
+   ], 
+   "is_grounded": true
+  }, 
+  {
+   "node_ind": 4, 
+   "point": [
+    4.5712914060010688, 
+    0.85717714849702331, 
+    2.0001472612241842
+   ], 
+   "is_grounded": false
+  }, 
+  {
+   "node_ind": 5, 
+   "point": [
+    0.0, 
+    2.0, 
+    2.0
+   ], 
+   "is_grounded": true
+  }, 
+  {
+   "node_ind": 6, 
+   "point": [
+    4.5712914060005563, 
+    -0.85717714849693361, 
+    2.0001472612241793
+   ], 
+   "is_grounded": false
+  }, 
+  {
+   "node_ind": 7, 
+   "point": [
+    0.0, 
+    -2.0, 
+    2.0
+   ], 
+   "is_grounded": true
+  }, 
+  {
+   "node_ind": 8, 
+   "point": [
+    8.0, 
+    0.0, 
+    0.0
+   ], 
+   "is_grounded": false
+  }, 
+  {
+   "node_ind": 9, 
+   "point": [
+    3.4284462853108271, 
+    -1.1428884286752201, 
+    1.7500918209944872e-12
+   ], 
+   "is_grounded": false
+  }, 
+  {
+   "node_ind": 10, 
+   "point": [
+    3.4284462853107693, 
+    1.1428884286750172, 
+    -1.4798531654165844e-15
+   ], 
+   "is_grounded": false
+  }
+ ], 
+ "loadcases": {
+  "0": {
+   "eloads": [], 
+   "gravity": null, 
+   "ploads": [
+    {
+     "node_ind": 8, 
+     "force": [
+      0.0, 
+      0.0, 
+      -0.00020000000000000001
+     ], 
+     "moment": [
+      0.0, 
+      0.0, 
+      0.0
+     ], 
+     "loadcase": 0
+    }
+   ]
+  }
+ }, 
+ "model_name": "tim_3d", 
+ "element_num": 16, 
+ "supports": [
+  {
+   "node_ind": 1, 
+   "condition": [
+    true, 
+    true, 
+    true, 
+    false, 
+    false, 
+    false
+   ]
+  }, 
+  {
+   "node_ind": 3, 
+   "condition": [
+    true, 
+    true, 
+    true, 
+    false, 
+    false, 
+    false
+   ]
+  }, 
+  {
+   "node_ind": 5, 
+   "condition": [
+    true, 
+    true, 
+    true, 
+    false, 
+    false, 
+    false
+   ]
+  }, 
+  {
+   "node_ind": 7, 
+   "condition": [
+    true, 
+    true, 
+    true, 
+    false, 
+    false, 
+    false
+   ]
+  }, 
+  {
+   "node_ind": 1, 
+   "condition": [
+    true, 
+    true, 
+    true, 
+    false, 
+    false, 
+    false
+   ]
+  }
+ ], 
+ "node_num": 11, 
+ "dimension": 3, 
+ "cross_secs": [
+  {
+   "Iy": 2.1106547193827362e-06, 
+   "family": "RO", 
+   "Iz": 2.1106547193827362e-06, 
+   "A": 0.0013860706787638157, 
+   "elem_tags": [
+    null
+   ], 
+   "Jx": 4.2213094387654724e-06, 
+   "name": "RO114.3/4"
+  }
+ ], 
+ "elements": [
+  {
+   "elem_tag": "", 
+   "bending_stiff": false, 
+   "elem_ind": 0, 
+   "end_node_inds": [
+    0, 
+    1
+   ]
+  }, 
+  {
+   "elem_tag": "", 
+   "bending_stiff": false, 
+   "elem_ind": 1, 
+   "end_node_inds": [
+    2, 
+    3
+   ]
+  }, 
+  {
+   "elem_tag": "", 
+   "bending_stiff": false, 
+   "elem_ind": 2, 
+   "end_node_inds": [
+    4, 
+    5
+   ]
+  }, 
+  {
+   "elem_tag": "", 
+   "bending_stiff": false, 
+   "elem_ind": 3, 
+   "end_node_inds": [
+    6, 
+    7
+   ]
+  }, 
+  {
+   "elem_tag": "", 
+   "bending_stiff": false, 
+   "elem_ind": 4, 
+   "end_node_inds": [
+    2, 
+    8
+   ]
+  }, 
+  {
+   "elem_tag": "", 
+   "bending_stiff": false, 
+   "elem_ind": 5, 
+   "end_node_inds": [
+    6, 
+    8
+   ]
+  }, 
+  {
+   "elem_tag": "", 
+   "bending_stiff": false, 
+   "elem_ind": 6, 
+   "end_node_inds": [
+    0, 
+    8
+   ]
+  }, 
+  {
+   "elem_tag": "", 
+   "bending_stiff": false, 
+   "elem_ind": 7, 
+   "end_node_inds": [
+    4, 
+    8
+   ]
+  }, 
+  {
+   "elem_tag": "", 
+   "bending_stiff": false, 
+   "elem_ind": 8, 
+   "end_node_inds": [
+    1, 
+    9
+   ]
+  }, 
+  {
+   "elem_tag": "", 
+   "bending_stiff": false, 
+   "elem_ind": 9, 
+   "end_node_inds": [
+    7, 
+    9
+   ]
+  }, 
+  {
+   "elem_tag": "", 
+   "bending_stiff": false, 
+   "elem_ind": 10, 
+   "end_node_inds": [
+    6, 
+    9
+   ]
+  }, 
+  {
+   "elem_tag": "", 
+   "bending_stiff": false, 
+   "elem_ind": 11, 
+   "end_node_inds": [
+    0, 
+    9
+   ]
+  }, 
+  {
+   "elem_tag": "", 
+   "bending_stiff": false, 
+   "elem_ind": 12, 
+   "end_node_inds": [
+    3, 
+    10
+   ]
+  }, 
+  {
+   "elem_tag": "", 
+   "bending_stiff": false, 
+   "elem_ind": 13, 
+   "end_node_inds": [
+    5, 
+    10
+   ]
+  }, 
+  {
+   "elem_tag": "", 
+   "bending_stiff": false, 
+   "elem_ind": 14, 
+   "end_node_inds": [
+    4, 
+    10
+   ]
+  }, 
+  {
+   "elem_tag": "", 
+   "bending_stiff": false, 
+   "elem_ind": 15, 
+   "end_node_inds": [
+    2, 
+    10
+   ]
+  }
+ ], 
+ "materials": [
+  {
+   "G3": 80760000.0, 
+   "density": 78.5, 
+   "G12": 80760000.0, 
+   "family": "Steel", 
+   "mu": 0.30014858841010406, 
+   "E": 210000000.0, 
+   "elem_tags": [
+    null
+   ], 
+   "name": "Steel", 
+   "type_name": "ISO", 
+   "fy": 235000.0
+  }
+ ], 
+ "unit": "meter"
+}

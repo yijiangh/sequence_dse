@@ -1,0 +1,510 @@
+{
+ "model_name": "cantilever", 
+ "unit": "meter", 
+ "generate_time": "2022-03-16 07:53:42.006000", 
+ "node_num": 11, 
+ "element_num": 16, 
+ "nodes": [
+  {
+   "node_ind": 0, 
+   "point": [
+    0.0, 
+    -2.0, 
+    -2.0
+   ], 
+   "is_grounded": true
+  }, 
+  {
+   "node_ind": 1, 
+   "point": [
+    4.5712914060014915, 
+    -0.85717714849669979, 
+    -2.0001472612241793
+   ], 
+   "is_grounded": false
+  }, 
+  {
+   "node_ind": 2, 
+   "point": [
+    0.0, 
+    2.0, 
+    -2.0
+   ], 
+   "is_grounded": true
+  }, 
+  {
+   "node_ind": 3, 
+   "point": [
+    4.5712914060010688, 
+    0.8571771484970232, 
+    -2.0001472612241846
+   ], 
+   "is_grounded": false
+  }, 
+  {
+   "node_ind": 4, 
+   "point": [
+    0.0, 
+    2.0, 
+    2.0
+   ], 
+   "is_grounded": true
+  }, 
+  {
+   "node_ind": 5, 
+   "point": [
+    4.5712914060010688, 
+    0.85717714849702331, 
+    2.0001472612241842
+   ], 
+   "is_grounded": false
+  }, 
+  {
+   "node_ind": 6, 
+   "point": [
+    0.0, 
+    -2.0, 
+    2.0
+   ], 
+   "is_grounded": true
+  }, 
+  {
+   "node_ind": 7, 
+   "point": [
+    4.5712914060005563, 
+    -0.85717714849693361, 
+    2.0001472612241793
+   ], 
+   "is_grounded": false
+  }, 
+  {
+   "node_ind": 8, 
+   "point": [
+    8.0, 
+    0.0, 
+    0.0
+   ], 
+   "is_grounded": false
+  }, 
+  {
+   "node_ind": 9, 
+   "point": [
+    3.4284462853108271, 
+    -1.1428884286752201, 
+    1.7500918209944872e-12
+   ], 
+   "is_grounded": false
+  }, 
+  {
+   "node_ind": 10, 
+   "point": [
+    3.4284462853107693, 
+    1.1428884286750172, 
+    -1.4798531654165844e-15
+   ], 
+   "is_grounded": false
+  }
+ ], 
+ "elements": [
+  {
+   "elem_tag": "TO_0", 
+   "bending_stiff": true, 
+   "elem_ind": 0, 
+   "end_node_inds": [
+    0, 
+    1
+   ]
+  }, 
+  {
+   "elem_tag": "TO_1", 
+   "bending_stiff": true, 
+   "elem_ind": 1, 
+   "end_node_inds": [
+    2, 
+    3
+   ]
+  }, 
+  {
+   "elem_tag": "TO_2", 
+   "bending_stiff": true, 
+   "elem_ind": 2, 
+   "end_node_inds": [
+    4, 
+    5
+   ]
+  }, 
+  {
+   "elem_tag": "TO_3", 
+   "bending_stiff": true, 
+   "elem_ind": 3, 
+   "end_node_inds": [
+    6, 
+    7
+   ]
+  }, 
+  {
+   "elem_tag": "TO_4", 
+   "bending_stiff": true, 
+   "elem_ind": 4, 
+   "end_node_inds": [
+    3, 
+    8
+   ]
+  }, 
+  {
+   "elem_tag": "TO_5", 
+   "bending_stiff": true, 
+   "elem_ind": 5, 
+   "end_node_inds": [
+    7, 
+    8
+   ]
+  }, 
+  {
+   "elem_tag": "TO_6", 
+   "bending_stiff": true, 
+   "elem_ind": 6, 
+   "end_node_inds": [
+    1, 
+    8
+   ]
+  }, 
+  {
+   "elem_tag": "TO_7", 
+   "bending_stiff": true, 
+   "elem_ind": 7, 
+   "end_node_inds": [
+    5, 
+    8
+   ]
+  }, 
+  {
+   "elem_tag": "TO_8", 
+   "bending_stiff": true, 
+   "elem_ind": 8, 
+   "end_node_inds": [
+    0, 
+    9
+   ]
+  }, 
+  {
+   "elem_tag": "TO_9", 
+   "bending_stiff": true, 
+   "elem_ind": 9, 
+   "end_node_inds": [
+    6, 
+    9
+   ]
+  }, 
+  {
+   "elem_tag": "TO_10", 
+   "bending_stiff": true, 
+   "elem_ind": 10, 
+   "end_node_inds": [
+    7, 
+    9
+   ]
+  }, 
+  {
+   "elem_tag": "TO_11", 
+   "bending_stiff": true, 
+   "elem_ind": 11, 
+   "end_node_inds": [
+    1, 
+    9
+   ]
+  }, 
+  {
+   "elem_tag": "TO_12", 
+   "bending_stiff": true, 
+   "elem_ind": 12, 
+   "end_node_inds": [
+    2, 
+    10
+   ]
+  }, 
+  {
+   "elem_tag": "TO_13", 
+   "bending_stiff": true, 
+   "elem_ind": 13, 
+   "end_node_inds": [
+    4, 
+    10
+   ]
+  }, 
+  {
+   "elem_tag": "TO_14", 
+   "bending_stiff": true, 
+   "elem_ind": 14, 
+   "end_node_inds": [
+    5, 
+    10
+   ]
+  }, 
+  {
+   "elem_tag": "TO_15", 
+   "bending_stiff": true, 
+   "elem_ind": 15, 
+   "end_node_inds": [
+    3, 
+    10
+   ]
+  }
+ ], 
+ "supports": [
+  {
+   "node_ind": 0, 
+   "condition": [
+    true, 
+    true, 
+    true, 
+    false, 
+    false, 
+    false
+   ]
+  }, 
+  {
+   "node_ind": 2, 
+   "condition": [
+    true, 
+    true, 
+    true, 
+    false, 
+    false, 
+    false
+   ]
+  }, 
+  {
+   "node_ind": 4, 
+   "condition": [
+    true, 
+    true, 
+    true, 
+    false, 
+    false, 
+    false
+   ]
+  }, 
+  {
+   "node_ind": 6, 
+   "condition": [
+    true, 
+    true, 
+    true, 
+    false, 
+    false, 
+    false
+   ]
+  }
+ ], 
+ "joints": [], 
+ "materials": [
+  {
+   "family": "peregrine", 
+   "G12": 80760000.0, 
+   "G3": 80760000.0, 
+   "mu": 0.30014858841010406, 
+   "E": 210000000.0, 
+   "elem_tags": [
+    ""
+   ], 
+   "fc": 1000.0, 
+   "name": "peregrine_mat", 
+   "ft": 1000.0, 
+   "density": 78.0, 
+   "type_name": "ISO"
+  }
+ ], 
+ "cross_secs": [
+  {
+   "Iy": 0.0010320054507912593, 
+   "family": "peregrine", 
+   "Iz": 0.0010320054507912593, 
+   "A": 0.11387959857095463, 
+   "elem_tags": [
+    "TO_0"
+   ], 
+   "Jx": 0.0020640109015825185, 
+   "name": "peregrine_TO_0"
+  }, 
+  {
+   "Iy": 0.001178998202259461, 
+   "family": "peregrine", 
+   "Iz": 0.001178998202259461, 
+   "A": 0.12171987661534818, 
+   "elem_tags": [
+    "TO_1"
+   ], 
+   "Jx": 0.0023579964045189221, 
+   "name": "peregrine_TO_1"
+  }, 
+  {
+   "Iy": 0.0011789982022522886, 
+   "family": "peregrine", 
+   "Iz": 0.0011789982022522886, 
+   "A": 0.12171987661497793, 
+   "elem_tags": [
+    "TO_2"
+   ], 
+   "Jx": 0.0023579964045045772, 
+   "name": "peregrine_TO_2"
+  }, 
+  {
+   "Iy": 0.0010320054507944659, 
+   "family": "peregrine", 
+   "Iz": 0.0010320054507944659, 
+   "A": 0.11387959857113154, 
+   "elem_tags": [
+    "TO_3"
+   ], 
+   "Jx": 0.0020640109015889318, 
+   "name": "peregrine_TO_3"
+  }, 
+  {
+   "Iy": 0.000875583714729015, 
+   "family": "peregrine", 
+   "Iz": 0.000875583714729015, 
+   "A": 0.10489475422146781, 
+   "elem_tags": [
+    "TO_4"
+   ], 
+   "Jx": 0.00175116742945803, 
+   "name": "peregrine_TO_4"
+  }, 
+  {
+   "Iy": 0.00076641946059874508, 
+   "family": "peregrine", 
+   "Iz": 0.00076641946059874508, 
+   "A": 0.09813822388825405, 
+   "elem_tags": [
+    "TO_5"
+   ], 
+   "Jx": 0.0015328389211974902, 
+   "name": "peregrine_TO_5"
+  }, 
+  {
+   "Iy": 0.00076641946059816481, 
+   "family": "peregrine", 
+   "Iz": 0.00076641946059816481, 
+   "A": 0.098138223888216899, 
+   "elem_tags": [
+    "TO_6"
+   ], 
+   "Jx": 0.0015328389211963296, 
+   "name": "peregrine_TO_6"
+  }, 
+  {
+   "Iy": 0.00087558371472737427, 
+   "family": "peregrine", 
+   "Iz": 0.00087558371472737427, 
+   "A": 0.10489475422136953, 
+   "elem_tags": [
+    "TO_7"
+   ], 
+   "Jx": 0.0017511674294547485, 
+   "name": "peregrine_TO_7"
+  }, 
+  {
+   "Iy": 0.00076652898626995995, 
+   "family": "peregrine", 
+   "Iz": 0.00076652898626995995, 
+   "A": 0.098145235891088214, 
+   "elem_tags": [
+    "TO_8"
+   ], 
+   "Jx": 0.0015330579725399199, 
+   "name": "peregrine_TO_8"
+  }, 
+  {
+   "Iy": 0.00076652898627678446, 
+   "family": "peregrine", 
+   "Iz": 0.00076652898627678446, 
+   "A": 0.098145235891525115, 
+   "elem_tags": [
+    "TO_9"
+   ], 
+   "Jx": 0.0015330579725535689, 
+   "name": "peregrine_TO_9"
+  }, 
+  {
+   "Iy": 0.0002504530569618875, 
+   "family": "peregrine", 
+   "Iz": 0.0002504530569618875, 
+   "A": 0.056100676780964837, 
+   "elem_tags": [
+    "TO_10"
+   ], 
+   "Jx": 0.000500906113923775, 
+   "name": "peregrine_TO_10"
+  }, 
+  {
+   "Iy": 0.00025045305693685858, 
+   "family": "peregrine", 
+   "Iz": 0.00025045305693685858, 
+   "A": 0.056100676778161634, 
+   "elem_tags": [
+    "TO_11"
+   ], 
+   "Jx": 0.00050090611387371717, 
+   "name": "peregrine_TO_11"
+  }, 
+  {
+   "Iy": 0.0008757088405858313, 
+   "family": "peregrine", 
+   "Iz": 0.0008757088405858313, 
+   "A": 0.10490224898004967, 
+   "elem_tags": [
+    "TO_12"
+   ], 
+   "Jx": 0.0017514176811716626, 
+   "name": "peregrine_TO_12"
+  }, 
+  {
+   "Iy": 0.00087570884059196951, 
+   "family": "peregrine", 
+   "Iz": 0.00087570884059196951, 
+   "A": 0.10490224898041732, 
+   "elem_tags": [
+    "TO_13"
+   ], 
+   "Jx": 0.001751417681183939, 
+   "name": "peregrine_TO_13"
+  }, 
+  {
+   "Iy": 0.0002861261087832496, 
+   "family": "peregrine", 
+   "Iz": 0.0002861261087832496, 
+   "A": 0.059963044664316068, 
+   "elem_tags": [
+    "TO_14"
+   ], 
+   "Jx": 0.0005722522175664992, 
+   "name": "peregrine_TO_14"
+  }, 
+  {
+   "Iy": 0.00028612610877757998, 
+   "family": "peregrine", 
+   "Iz": 0.00028612610877757998, 
+   "A": 0.05996304466372198, 
+   "elem_tags": [
+    "TO_15"
+   ], 
+   "Jx": 0.00057225221755515996, 
+   "name": "peregrine_TO_15"
+  }
+ ], 
+ "loadcases": {
+  "0": {
+   "eloads": [], 
+   "gravity": {
+    "force": [
+     -0.0, 
+     -0.0, 
+     -1.0
+    ], 
+    "loadcase": "0"
+   }, 
+   "ploads": []
+  }
+ }
+}

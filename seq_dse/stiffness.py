@@ -13,7 +13,7 @@ from pyconmech.frame_analysis import GravityLoad, Node, Element, Support, Materi
 from seq_dse.utils import check_connected, compute_z_distance, find_grounded_elements
 from seq_dse.parsing import get_fem_element_from_bar_id_from_model
 
-TRANS_TOL = 0.02 # 0.0005
+TRANS_TOL = 0.09 # 0.0005
 ROT_TOL = np.inf # 5 * np.pi / 180
 
 ####################################
@@ -88,23 +88,27 @@ def draw_conmech_model(model, fem_element_from_bar_id, existing_elements=None, e
 #     checker.set_nodal_displacement_tol(trans_tol=trans_tol, rot_tol=ROT_TOL)
 #     return checker, fem_element_from_bar_id
 
-def create_stiffness_checker_from_model(model, verbose=False, trans_tol=TRANS_TOL):
+def create_stiffness_checker_from_model(model, verbose=False, trans_tol=TRANS_TOL, loadcase=None):
     with pp.HideOutput():
         checker = StiffnessChecker(model, verbose=verbose, checker_engine="numpy")
+    if loadcase is None:
         checker.set_loads(LoadCase(gravity_load=GravityLoad([0,0,-1.0])))
+    else:
+        checker.set_loads(loadcase)
     checker.set_nodal_displacement_tol(trans_tol=trans_tol, rot_tol=ROT_TOL)
     return checker, get_fem_element_from_bar_id_from_model(model)
 
 ##############################################
 
-def evaluate_stiffness(model, existing_elements, checker=None, fem_element_from_bar_id=None, trans_tol=TRANS_TOL, verbose=True):
+def evaluate_stiffness(model, existing_elements, checker=None, fem_element_from_bar_id=None, trans_tol=TRANS_TOL, 
+        verbose=True, **kwargs):
     # ! existing_elements uses int-based indexing
     # TODO: check each connected component individually
     # if not elements:
     #     return Deformation(True, {}, {}, {})
 
     if checker is None or fem_element_from_bar_id is None:
-        checker, fem_element_from_bar_id = create_stiffness_checker_from_model(model, trans_tol=trans_tol, verbose=verbose)
+        checker, fem_element_from_bar_id = create_stiffness_checker_from_model(model, trans_tol=trans_tol, verbose=verbose, **kwargs)
 
     exist_element_ids = set()
     for elem in existing_elements:
@@ -117,7 +121,7 @@ def evaluate_stiffness(model, existing_elements, checker=None, fem_element_from_
 
     is_stiff = checker.solve(exist_element_ids=list(exist_element_ids), if_cond_num=True)
     if not checker.has_stored_result():
-        raise ValueError('checker no result')
+        # raise ValueError('checker no result')
         return Deformation(False, {}, {}, {})
     #print("has stored results: {0}".format(checker.has_stored_result()))
 
@@ -154,7 +158,8 @@ def test_stiffness(model, existing_elements, **kwargs):
 
 ##################################################
 
-def plan_stiffness(model, elements, connectors, grounded_nodes, existing_elements, checker=None, fem_element_from_bar_id=None, trans_tol=TRANS_TOL, stiffness=True, heuristic='z', max_time=pp.INF, max_backtrack=0, verbose=False):
+def plan_stiffness(model, elements, connectors, grounded_nodes, existing_elements, checker=None, fem_element_from_bar_id=None,
+        optimize=False, trans_tol=TRANS_TOL, stiffness=True, heuristic='z', max_time=pp.INF, max_backtrack=0, verbose=False):
     """use the progression (foward-search) algorithm to plan a stiff sequence
     """
     start_time = time.time()
@@ -168,11 +173,14 @@ def plan_stiffness(model, elements, connectors, grounded_nodes, existing_element
     remaining_elements = frozenset(existing_elements)
     min_remaining = len(remaining_elements)
     num_evaluated = max_backtrack = stiffness_failures = 0
+
+    solutions = []
     queue = [(None, frozenset(), [])]
     while queue and (pp.elapsed_time(start_time) < max_time):
         # TODO pop position and try distance heuristic
         _, built_elements, sequence = heapq.heappop(queue)
         element = sequence[-1] if sequence else None
+
         num_evaluated += 1
         num_remaining = len(remaining_elements) - len(built_elements)
         backtrack = num_remaining - min_remaining

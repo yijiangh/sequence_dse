@@ -8,7 +8,7 @@ from itertools import combinations
 import pybullet_planning as pp
 from pyconmech.frame_analysis import GravityLoad, Node, Element, Support, Material, CrossSec, Material, Joint, Model, LoadCase
 
-from seq_dse.utils import CLOSE_PT_TOL
+from seq_dse.utils import CLOSE_PT_TOL, LOGGER
 from seq_dse.data_structures import SeqElement, PlanningData, FEMData
 
 HERE = os.path.dirname(__file__)
@@ -17,14 +17,16 @@ DATA_DIR = os.path.join(HERE, '..', 'data')
 ########################
 
 def conmech_model_from_problem_name(problem_name):
-    with open(os.path.join(DATA_DIR, problem_name, f'{problem_name}.json'), 'r') as f:
+    filepath = os.path.join(DATA_DIR, problem_name, f'{problem_name}_karamba.json')
+    with open(filepath, 'r') as f:
         data = json.load(f)
+    LOGGER.info(f'conmech model parsed from {filepath}')
     return conmech_model_from_json_data(data)
 
 def conmech_model_from_json_data(karamba_model_data):
     model = Model.from_data(karamba_model_data)
     loadcase = LoadCase.from_data(karamba_model_data['loadcases']['0'])
-    return model
+    return model, loadcase
 
 def get_fem_element_from_bar_id_from_model(model):
     return {e.elem_ind : [e.elem_ind] for e in model.elements}
