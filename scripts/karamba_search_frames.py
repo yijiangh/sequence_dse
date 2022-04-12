@@ -193,8 +193,6 @@ def get_other_node(node1, element):
     assert node1 in element
     return element[node1 == element[0]]
 
-#######################################
-
 ########################################
 
 def check_connected(ground_nodes, seq_built_elements):
@@ -260,27 +258,35 @@ def get_search_heuristic_fn(element_from_id, node_points, ground_nodes, heuristi
     return h_fn
 
 def add_successors(queue, all_elements, grounded_nodes, heuristic_fn, ordered_built_elements, 
-        incoming_from_element=None, verbose=False):
+        incoming_from_element=None, verbose=False, solutions=[], violated_states=[]):
     built_elements = set(ordered_built_elements)
     remaining = all_elements - built_elements
     num_remaining = len(remaining) - 1
-    assert 0 <= num_remaining, '{}'.format(num_remaining)
+    assert 0 <= num_remaining, 'num_remaining {}'.format(num_remaining)
     candidate_elements = list(compute_candidate_elements(all_elements, grounded_nodes, built_elements))
-#    print 'candidate_elements:', candidate_elements
     # TODO make incoming_from_element safe
-#    if verbose: print('add successors: candidate elements: {}'.format(candidate_elements))
-    for directed in randomize(candidate_elements):
+    for directed in candidate_elements: #randomize(candidate_elements):
         element = get_undirected(all_elements, directed)
         # partial ordering
         if not (incoming_from_element[element] <= built_elements):
             continue
-#        print 'push queue: incoming_from_element[{}]'.format(element), incoming_from_element[element], built_elements
         # compute bias value
-        bias = heuristic_fn(built_elements, element)
+        if len(solutions) == 0:
+            bias = heuristic_fn(built_elements, element)
+        else:
+            # deflation-like objective
+            new_ordered_built_elements = ordered_built_elements + (element,)
+            similarity_score = 0
+            for _, prev_plan in solutions:
+                prev_seq = get_sequence_from_plan(prev_plan)
+                for q_i, q_e in enumerate(new_ordered_built_elements):
+                    similarity_score += abs(q_i - prev_seq.index(q_e))
+            similarity_score *= -1.0
+            bias = similarity_score
         # `num_remaining` can be seen as the search node's "inverse" depth in the search tree
         # heapq will prioritize poping ones with lower num_remaining value first, 
         # which means the node is on a deeper lever of the search tree
-        priority = (num_remaining, bias, random.random())
+        priority = (num_remaining, bias) #, random.random())
         heapq.heappush(queue, (0, priority, ordered_built_elements, element))
 
 SearchState = namedtuple('SearchState', ['action', 'state'])
@@ -388,7 +394,8 @@ def progression_sequencing(model, grounded_supports, heuristic='z_distance', sti
                 max_displacement = test_stiffness_fn(model, existing_e_ids, verbose=verbose)
                 cached_analysis[built_element_set] = max_displacement
             else:
-                print('reuse analysis!')
+                if verbose:
+                    print('reuse analysis!')
                 max_displacement = cached_analysis[built_element_set]
             if max_displacement > trans_tol:
                 if verbose:
@@ -414,44 +421,40 @@ def progression_sequencing(model, grounded_supports, heuristic='z_distance', sti
             # a solution has been found!
             plan = retrace_sequence(visited, next_built_elements)
             seq = get_sequence_from_plan(plan)
-            for _, prev_plan in solutions:
-                if get_sequence_from_plan(prev_plan) == seq:
-                    # plan has be found before
-#                    if verbose:
-                    print('> Plan found before: {}'.format(seq))
-                    break
+            new_path_cost = compute_path_cost_fn(plan)
+            if not optimize:
+                heapq.heappush(solutions, (new_path_cost, plan))
+                break
             else:
-                new_path_cost = compute_path_cost_fn(plan)
-                if store_worse_solution or new_path_cost <= best_solution_score + 1e-6:
-                    print('!!! score {:.6f} | #of sols: {}|  better plan found: {}'.format(new_path_cost, len(solutions), [id_from_element[e] for e in seq]))
+                # check duplicated plan
+                duplicated_plan = False
+                for _, prev_plan in solutions:
+                    if get_sequence_from_plan(prev_plan) == seq:
+                        print('> Plan found before: {}'.format([id_from_element[e] for e in seq]))
+                        duplicated_plan = True
+                        break
+                # exit the search if a duplicated plan is found
+                if duplicated_plan:
+                    break
+                if store_worse_solution or new_path_cost <= best_solution_score*(1+1e-6):
+                    print('!!! score {:.6f} | #of sols: {}|  better plan found: {}'.format(new_path_cost, len(solutions), 
+                        [id_from_element[e] for e in seq]))
                     best_solution_score = new_path_cost
                     # TODO can also not append if not a better solution
                     heapq.heappush(solutions, (new_path_cost, plan))
-                    
-                    if not optimize:
-                        break
-                    else:
-                        # reorder the queue based on partial-construction priority score
-#                        if len(solutions) > 0 and queue_reordering:
-                        if queue_reordering:
-                            new_queue = []
-                            for q in queue:
-                                # (level, priority, ordered_built_elements, directed)
-                                q_ordered_built_elements = q[-2] + (q[-1],) # (get_undirected(all_elements, q[-1]),)
-                                new_bias = 0
-    #                            for _, prev_plan in solutions:
-#                                prev_seq = get_sequence_from_plan(prev_plan)
-                                for q_i, q_e in enumerate(q_ordered_built_elements):
-                                    new_bias += abs(q_i - seq.index(q_e))
-                                # higher difference should be popped first
-                                heapq.heappush(new_queue, (-new_bias,) + q[1:])
-                            queue = new_queue
                 else:
-                    print('? score {:.6f} | #of sols: {}| not a better plan found: {}'.format(new_path_cost, len(solutions), [id_from_element[e] for e in seq]))
+                    print('? score {:.6f} | #of sols: {}| not a better plan found: {}'.format(new_path_cost, len(solutions), 
+                        [id_from_element[e] for e in seq]))
+                # clear the queue and restart the search
+                queue = []
+                visited = {initial_built : SearchState((None, None), None)}
+                add_successors(queue, all_elements, ground_nodes, heuristic_fn, initial_built, 
+                    incoming_from_element=incoming_from_element, verbose=verbose, solutions=solutions)
                 continue
+                
         # * continue to the next search level, add candidates to queue
         add_successors(queue, all_elements, ground_nodes, heuristic_fn, next_built_elements, 
-            incoming_from_element=incoming_from_element, verbose=verbose)
+            incoming_from_element=incoming_from_element, verbose=verbose, solutions=solutions)
     
     data = {
         'planning_time' : elapsed_time(start_time),
