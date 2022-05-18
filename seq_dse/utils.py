@@ -1,3 +1,4 @@
+import os
 import logging
 from collections import namedtuple, defaultdict, deque
 import numpy as np
@@ -174,3 +175,9 @@ def compute_z_distance(element_from_index, element):
     # Distance to a ground plane
     # Opposing gravitational force
     return get_midpoint(element_from_index, element)[2]
+
+######################################################
+
+def mkdir(path):
+    if not os.path.exists(path):
+        os.mkdir(path)
