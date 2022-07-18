@@ -29,14 +29,17 @@ def save_seq_performance_plot(data_path: str, test_folder_name: str, design_id: 
         'stress' : stress_history,
     }
 
+    plt.rcParams['font.sans-serif'] = "Arial"
+    plt.rcParams['font.family'] = "sans-serif"
+    plt.rc('font', size=14)
+    # plt.clf()
+
     pdf_path = os.path.join(data_path, 'raw_imgs')
     mkdir(pdf_path)
     for constraint_type, fea_history in histories.items():
         unit = '[kN/cm2]' if constraint_type == 'stress' else '[cm]'
         scale = 1.0 if constraint_type == 'stress' else 100.0
 
-        plt.rc('font', size=14)
-        # plt.clf()
         fig, ax = plt.subplots(figsize=(10, 2.5), layout='constrained')
 
         fea_history = scale * np.array(fea_history)
@@ -45,7 +48,7 @@ def save_seq_performance_plot(data_path: str, test_folder_name: str, design_id: 
         max_fea = fea_history[max_id]
 
         # * performance line
-        perf_color = '#E39774' if constraint_type == 'displacement' else '#326273'
+        perf_color = '#4A3981' if constraint_type == 'displacement' else '#55B679'
         ax.plot(range(len(seq)), fea_history, c=perf_color, linewidth = 1)
 
         # * tolerance line
@@ -57,11 +60,17 @@ def save_seq_performance_plot(data_path: str, test_folder_name: str, design_id: 
         ax.set_xlabel('assembly steps')
         ax.set_ylabel('maximal {} {}'.format(constraint_type, unit))
 
-        plt.annotate('{:.2f}'.format(max_fea), xy=(max_id, max_fea), xytext=(max_id, max_fea+2), xycoords='data',
-                     arrowprops=dict(arrowstyle="->", lw=0.5),
+        if constraint_type != given_constraint_type:
+            ax.set_ylim(bottom=0.0, top=max_fea + 0.5)
+
+        plt.annotate('{:.2f}'.format(max_fea), xy=(max_id, max_fea), xytext=(max_id, max_fea+0.05), xycoords='data',
+                     arrowprops=dict(arrowstyle="->", lw=0.5), fontsize=28,
                      )
         # extraticks = [max_fea]
         # plt.yticks(list(plt.yticks()[0]) + extraticks);
+
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
 
         fig.savefig(os.path.join(pdf_path, 'design{}_seq{}_{}.png'.format(design_id, seq_id, constraint_type)), dpi=200)
         fig.savefig(os.path.join(pdf_path, 'design{}_seq{}_{}.pdf'.format(design_id, seq_id, constraint_type)), dpi=200)
