@@ -20,7 +20,14 @@ import copy
 from collections import namedtuple, OrderedDict, defaultdict, deque
 
 INF = 1e12
-DEFAULT_TRANS_TOL = 5e-2 # meter
+DEFAULT_PHYSICAL_TOL = 5e-2 # meter
+
+SEARCH_HEURISTIC = {
+    'random', 'z_distance', 'graph_distance',
+}
+OPTIMIZE_METHODS = {
+    'none', 'iterative_feasible_search', 'diversity_search',
+}
 
 class SeqSolution(object):
     def __init__(self, seq, stepwise_physics_performance, cost, seq_id_map=None, search_info=None):
@@ -41,6 +48,26 @@ class SeqSolution(object):
     @classmethod
     def from_data(cls, data):
         return cls(data['seq'],data['stepwise_physics_performance'],data['cost'],search_info=data['search_info'])
+
+class SeqSolutionBundle(object):
+    def __init__(self, solutions, search_info=None):
+        self.solutions = solutions or []
+        self.search_info = search_info or {}
+    def to_data(self):
+        return {
+            'solutions' : [sol.to_data() for sol in self.solutions],
+            'search_info' : self.search_info,
+        }
+    @classmethod
+    def from_data(cls, data):
+        return cls([SeqSolution.from_data(sd) for sd in data['solutions']], data['search_info'])
+    @property
+    def best_solution(self):
+        sorted_solutions = sorted(self.solutions, key=lambda sol: sol.cost)
+        return sorted_solutions[0]
+    @property
+    def costs(self):
+        return [s.cost for s in self.solutions]
 
 ##############################
 
@@ -260,10 +287,6 @@ def get_midpoint(node_points, element):
 
 #######################################
 
-SEARCH_HEURISTIC = {
-    'random', 'z_distance', 'graph_distance',
-}
-
 def get_search_heuristic_fn(element_from_id, node_points, ground_nodes, heuristic='random', forward=True):
     sign = +1 if forward else -1
     all_elements = frozenset(element_from_id.values())
@@ -318,7 +341,8 @@ def add_successors(queue, all_elements, grounded_nodes, heuristic_fn, ordered_bu
 
 SearchState = namedtuple('SearchState', ['action', 'state'])
 
-def progression_sequencing(model, grounded_supports, heuristic='z_distance', stiffness=True, trans_tol=DEFAULT_TRANS_TOL, 
+def progression_sequencing(model, grounded_supports, heuristic='z_distance', 
+        stiffness=True, physical_tol=DEFAULT_PHYSICAL_TOL, 
         partial_orders=None, verbose=False, backtrack_limit=INF, max_time=INF, diversity=False):
     start_time = time.time()
     ## * prepare data
@@ -388,11 +412,11 @@ def progression_sequencing(model, grounded_supports, heuristic='z_distance', sti
             else:
                 if verbose: print('reuse analysis!')
                 max_displacement = cached_analysis[built_element_set]
-            if max_displacement > trans_tol:
+            if max_displacement > physical_tol:
                 # the stiffness constraint is violated
                 if verbose:
                     print("Stiffness constraint violated: max val {:.4f} | tol {:.4f}".format(
-                    max_displacement, trans_tol))
+                    max_displacement, physical_tol))
                 stiffness_failures += 1
                 continue
         
@@ -441,8 +465,7 @@ def progression_sequencing(model, grounded_supports, heuristic='z_distance', sti
         add_successors(queue, all_elements, ground_nodes, heuristic_fn, next_built_elements, 
             incoming_from_element=incoming_from_element, verbose=verbose, solutions=solutions)
     
-    data = {
-        'solutions' : solutions,
+    search_info = {
         'diversity' : diversity,
         'planning_time' : elapsed_time(start_time),
         'num_evaluated': num_evaluated,
@@ -450,7 +473,13 @@ def progression_sequencing(model, grounded_supports, heuristic='z_distance', sti
         'max_backtrack': max_backtrack,
         'stiffness_failures': stiffness_failures,
     }
-    return data
+    seq_solutions = []
+    for sol_score, e_path in solutions:
+        seq = [ep[0] for ep in e_path]
+        phys_perf = [ep[1] for ep in e_path]
+        seq_solutions.append(SeqSolution(seq, phys_perf, sol_score, id_from_element))
+    seq_sol_bundle = SeqSolutionBundle(seq_solutions, search_info)
+    return seq_sol_bundle
 
 ############################
 # main
@@ -464,46 +493,45 @@ if enable:
     _partial_orders = tree_to_list(partial_orders, lambda x:x) if partial_orders.DataCount > 0 else []
     
     iter_search_eps = physical_tol * iter_relative_tol
-    runtime = []
     queue = deque([(0.0, physical_tol)])
-    iter_data = []
-    best_data = None
+    iter_solutions = []
+    best_solutions = None
+    assert optimize_method in OPTIMIZE_METHODS
+
     while queue:
         lower, higher = queue.popleft()
         if lower > higher or abs(higher-lower) < iter_search_eps:
             continue
         
-        i_data = progression_sequencing(model, grounded_supports, 
-            heuristic=heuristic, trans_tol=higher,
-            stiffness=check_stiffness, verbose=verbose, max_time=max_time, partial_orders=_partial_orders, diversity=False)
-        iter_data.append(i_data)
-        
-        print('Search {} | time {:.2f}'.format(higher, i_data['planning_time']))
-        runtime.append(i_data['planning_time'])
-        
+        iter_i_seq_sol_bundle = progression_sequencing(model, grounded_supports, 
+            heuristic=heuristic, physical_tol=higher,
+            stiffness=check_stiffness, verbose=verbose, max_time=max_time, 
+            partial_orders=_partial_orders, 
+            diversity=optimize_method=='diversity_search')
+        iter_solutions.append(iter_i_seq_sol_bundle)
+        print('Search tol {} | time {:.2f}'.format(higher, iter_i_seq_sol_bundle.search_info['planning_time']))
+
         new_tol = (lower + higher) / 2.
-        if len(i_data['solutions']) == 0:
+        if len(iter_i_seq_sol_bundle.solutions) == 0:
             # no solution found, tol too tight
             queue.append((new_tol, higher))
         else:
             # solution found
-            best_data = i_data
+            if best_solutions is not None and iter_i_seq_sol_bundle.best_solution.cost < best_solutions.best_solution.cost:
+                best_solutions = iter_i_seq_sol_bundle
             queue.append((lower, new_tol))
+
+        if optimize_method != 'iterative_feasible_search':
+            # return in the first feasible run if not in interative feasible search mode
+            break
     
-    if best_data is not None:
-        id_from_element = get_id_from_element_from_model(model)
-        all_elements = frozenset(id_from_element.keys())
-        # for GH downstream convert back to element id
-        
-        print('{} plan found!'.format(len(best_data['solutions']))) 
-        print('solution costs: {}'.format(best_solution_costs))
+    if best_solutions is not None:
+        print('{} plan found!'.format(len(best_solutions.solutions))) 
+        print('solution costs: {}'.format(best_solutions.costs))
         
         if save_solutions:
             data_dict = {
-                'iter_data' : [ for i_data in iter_data],
-                'solutions' : [
-                    {'seq' : seq, 'seq_cost' : seq_cost} for seq, seq_cost in zip(solutions, solution_costs)
-                ],
+                'solution_bundles' : [iter_sol_bundle.to_data() for iter_sol_bundle in iter_solutions],
             }
             with open(save_path, 'w') as fp:
                 json.dump(data_dict, fp)
