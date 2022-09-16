@@ -4,6 +4,7 @@ pybullet_planning>=0.6.0
 gurobipy
 pyDOE
 bayesian-optimization
+pandas>=1.4.3
 #
 termcolor
 colorlog
