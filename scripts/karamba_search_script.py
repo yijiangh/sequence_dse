@@ -1,6 +1,4 @@
 ﻿# The much of the code in the sequencing part is adapted from https://github.com/caelan/pb-construction
-if not enable:
-    raise ValueError('Search not enabled.')
 
 import Rhino.Geometry.Point3d as Point3d
 import Grasshopper.DataTree as DataTree # Add, AddRange(list, GHPath(i, j))
@@ -63,8 +61,11 @@ class SeqSolutionBundle(object):
         return cls([SeqSolution.from_data(sd) for sd in data['solutions']], data['search_info'])
     @property
     def best_solution(self):
-        sorted_solutions = sorted(self.solutions, key=lambda sol: sol.cost)
-        return sorted_solutions[0]
+        if len(self.solutions) > 0:
+            sorted_solutions = sorted(self.solutions, key=lambda sol: sol.cost)
+            return sorted_solutions[0]
+        else:
+            return None
     @property
     def costs(self):
         return [s.cost for s in self.solutions]
@@ -539,3 +540,12 @@ if enable:
     else:
         print('No plan found with time limit {}, tolerance {}.'.format(
             max_time, physical_tol))
+else:
+    with open(save_path, 'r') as fp:
+        data_dict = json.load(fp)
+        solution_bundles = [SeqSolutionBundle.from_data(sbd) for sbd in data_dict['solution_bundles']]
+        print('Solution parsed from {}'.format(save_path))
+    print('#{} solutions found!'.format(len(data_dict['solutions'])))
+    print data_dict['search_data']
+    solutions = [d['seq'] for d in data_dict['solutions']]
+    solution_costs = [d['seq_cost'] for d in data_dict['solutions']]
