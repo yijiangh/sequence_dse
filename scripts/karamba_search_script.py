@@ -36,6 +36,7 @@ class SeqSolution(object):
         self.stepwise_physics_performance = stepwise_physics_performance
         self.cost = cost
         self.search_info = search_info or {}
+
     def to_data(self):
         return {
             'seq' : self.seq,
@@ -43,6 +44,7 @@ class SeqSolution(object):
             'cost' : self.cost,
             'search_info' : self.search_info,
         }
+
     @classmethod
     def from_data(cls, data):
         return cls(data['seq'],data['stepwise_physics_performance'],data['cost'],search_info=data['search_info'])
@@ -51,14 +53,21 @@ class SeqSolutionBundle(object):
     def __init__(self, solutions, search_info=None):
         self.solutions = solutions or []
         self.search_info = search_info or {}
+
     def to_data(self):
         return {
             'solutions' : [sol.to_data() for sol in self.solutions],
             'search_info' : self.search_info,
         }
+
     @classmethod
     def from_data(cls, data):
         return cls([SeqSolution.from_data(sd) for sd in data['solutions']], data['search_info'])
+
+    @property
+    def sorted_solution(self):
+        return sorted(self.solutions, key=lambda sol: sol.cost)
+
     @property
     def best_solution(self):
         if len(self.solutions) > 0:
@@ -66,9 +75,27 @@ class SeqSolutionBundle(object):
             return sorted_solutions[0]
         else:
             return None
+
     @property
     def costs(self):
         return [s.cost for s in self.solutions]
+
+    @property
+    def min_cost(self):
+        if self.costs:
+            return min(self.costs)
+        else:
+            return None
+
+    @property
+    def min_cost_solution(self):
+        if self.solutions:
+            return self.solutions[self.costs.index(self.min_cost)]
+        else:
+            return None
+
+    def __repr__(self):
+        return 'Bundle: {} solutions, best cost {}'.format(len(self.solutions), self.min_cost)
 
 ##############################
 
@@ -509,8 +536,12 @@ if enable:
             stiffness=check_stiffness, verbose=verbose, max_time=max_time, 
             partial_orders=_partial_orders, 
             diversity=optimize_method=='diversity_search')
+        print('Interval ({}, {}), q len {}'.format(lower, higher, len(queue)))
+        print('Search tol {} | plan cost {} | search time {:.2f}'.format(higher,
+            iter_i_seq_sol_bundle.min_cost, iter_i_seq_sol_bundle.search_info['planning_time']))
+        print(iter_i_seq_sol_bundle.search_info)
+        
         iter_solutions.append(iter_i_seq_sol_bundle)
-        print('Search tol {} | time {:.2f}'.format(higher, iter_i_seq_sol_bundle.search_info['planning_time']))
 
         new_tol = (lower + higher) / 2.
         if len(iter_i_seq_sol_bundle.solutions) == 0:
@@ -518,7 +549,10 @@ if enable:
             queue.append((new_tol, higher))
         else:
             # solution found
-            if best_solutions is not None and iter_i_seq_sol_bundle.best_solution.cost < best_solutions.best_solution.cost:
+            if best_solutions is None:
+                best_solutions = iter_i_seq_sol_bundle
+            if best_solutions is not None and \
+                iter_i_seq_sol_bundle.best_solution.cost < best_solutions.best_solution.cost:
                 best_solutions = iter_i_seq_sol_bundle
             queue.append((lower, new_tol))
 
@@ -527,8 +561,8 @@ if enable:
             break
     
     if best_solutions is not None:
-        print('{} plan found!'.format(len(best_solutions.solutions))) 
-        print('solution costs: {}'.format(best_solutions.costs))
+        print('{} plan found!'.format(len(iter_solutions))) 
+        print('Min solution cost: {}'.format(best_solutions.min_cost))
         
         if save_solutions:
             data_dict = {
@@ -536,16 +570,21 @@ if enable:
             }
             with open(save_path, 'w') as fp:
                 json.dump(data_dict, fp)
-                print('Solutions saved to {}'.format(save_path))
+            print('Solutions saved to {}'.format(save_path))
     else:
         print('No plan found with time limit {}, tolerance {}.'.format(
             max_time, physical_tol))
 else:
+    # parse solutions only
     with open(save_path, 'r') as fp:
         data_dict = json.load(fp)
         solution_bundles = [SeqSolutionBundle.from_data(sbd) for sbd in data_dict['solution_bundles']]
-        print('Solution parsed from {}'.format(save_path))
-    print('#{} solutions found!'.format(len(data_dict['solutions'])))
-    print data_dict['search_data']
-    solutions = [d['seq'] for d in data_dict['solutions']]
-    solution_costs = [d['seq_cost'] for d in data_dict['solutions']]
+        print('Solution bundles parsed from {}'.format(save_path))
+
+    # if solution_bundles:
+    #     for sb in solution_bundles:
+    #         print(sb)
+    #     best_solution_bundle = min(solution_bundles, key=lambda x: x.min_cost)
+    #     print(best_solution_bundle.search_info)
+    #     solutions = [d['seq'] for d in best_solution_bundle.sorted_solutions]
+    #     solution_costs = [d['seq_cost'] for d in data_dict['solutions']]
