@@ -92,3 +92,23 @@ def save_seq_performance_plot(data_path: str, test_folder_name: str, design_id: 
         fig.savefig(os.path.join(pdf_path, 'design{}_seq{}_{}.pdf'.format(design_id, seq_id, constraint_type)), dpi=200)
 
     return True
+
+##############################
+
+def data_frame_to_mesh_grid(data, x_name, y_name, z_name, tol = 1e-6):
+    x_vals = np.sort(data[x_name].unique())
+    y_vals = np.sort(data[y_name].unique())
+    nx, ny = len(x_vals), len(y_vals)
+    mx = np.zeros((ny,nx))
+    my = np.zeros((ny,nx))
+    mz = np.zeros((ny,nx))
+    for i in range(nx):
+        for j in range(ny):
+            x_val = x_vals[i]
+            y_val = y_vals[j]
+            row_data = data.query(f'abs({x_name} - @x_val) < @tol and abs({y_name} - @y_val) < @tol')
+            assert len(row_data) == 1, f'xval {x_val}, yval {y_val}'
+            mx[j,i] = row_data[x_name]
+            my[j,i] = row_data[y_name]
+            mz[j,i] = row_data[z_name]
+    return mx, my, mz

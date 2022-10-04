@@ -1,10 +1,15 @@
-compas==1.14.1
-pyconmech
-pybullet_planning>=0.6.0
-gurobipy
-pyDOE
-bayesian-optimization
 pandas>=1.4.3
+numpy
+matplotlib
+ipywidgets
+ipympl
+
+# compas==1.14.1
+# pyconmech
+# pybullet_planning>=0.6.0
+# gurobipy
+# pyDOE
+# bayesian-optimization
 #
-termcolor
-colorlog
+# termcolor
+# colorlog

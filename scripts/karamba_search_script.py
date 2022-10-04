@@ -12,7 +12,7 @@ from ghpythonlib.treehelpers import list_to_tree, tree_to_list
 import heapq
 import json
 import random
-import time
+import os, time
 import math
 import copy
 from collections import namedtuple, OrderedDict, defaultdict, deque
@@ -366,7 +366,7 @@ def add_successors(queue, all_elements, grounded_nodes, heuristic_fn, ordered_bu
 SearchState = namedtuple('SearchState', ['action', 'state'])
 
 def progression_sequencing(model, grounded_supports, heuristic='z_distance', 
-        stiffness=True, physical_tol=DEFAULT_PHYSICAL_TOL, 
+        stiffness=True, physical_tol=DEFAULT_PHYSICAL_TOL, constraint='displacement',
         partial_orders=None, verbose=False, backtrack_limit=INF, max_time=INF, diversity=False):
     start_time = time.time()
     ## * prepare data
@@ -426,12 +426,12 @@ def progression_sequencing(model, grounded_supports, heuristic='z_distance',
         
         # no need to check connectivity here since the stiffness check should be able to capture that
         # assert check_connected(ground_nodes, next_built_elements)
-        max_displacement = INF
+        physical_behavior = (INF,INF)
         if stiffness:
             built_element_set = frozenset(next_built_elements)
             if built_element_set not in cached_analysis:
                 existing_e_ids = get_extructed_ids(element_from_id, next_built_elements)
-                physical_behavior = test_stiffness_fn(model, existing_e_ids, verbose=verbose)
+                physical_behavior = test_stiffness_fn(model, existing_e_ids, lc=loadcase_name, verbose=verbose)
                 cached_analysis[built_element_set] = physical_behavior
             else:
                 if verbose: print('reuse analysis!')
@@ -497,6 +497,8 @@ def progression_sequencing(model, grounded_supports, heuristic='z_distance',
         'min_remaining': min_remaining,
         'max_backtrack': max_backtrack,
         'stiffness_failures': stiffness_failures,
+        'constraint': constraint,
+        'physical_tolerance' : physical_tol,
     }
     seq_solutions = []
     for sol_score, e_path in solutions:
@@ -524,6 +526,7 @@ if enable:
     best_solutions = None
     assert optimize_method in OPTIMIZE_METHODS
     
+    start_time = time.time()
     if optimize_method == 'iterative_feasible_search':
         assert objective == constraint, "iterative feasible search only works when the objective and constraint are the same!"
         while queue:
@@ -537,7 +540,7 @@ if enable:
             half_tol = (lower + higher) / 2.
             print('Interval ({}, {}): testing tol {}'.format(lower, higher, half_tol))
             iter_i_seq_sol_bundle = progression_sequencing(model, grounded_supports, 
-                heuristic=heuristic, physical_tol=half_tol,
+                heuristic=heuristic, physical_tol=half_tol, constraint=constraint,
                 stiffness=check_stiffness, verbose=verbose, max_time=max_time, 
                 partial_orders=_partial_orders, 
                 diversity=optimize_method=='diversity_search')
@@ -545,6 +548,7 @@ if enable:
             print('plan cost {} | search time {:.2f}'.format(
                 iter_i_seq_sol_bundle.min_cost, iter_i_seq_sol_bundle.search_info['planning_time']))
             print(iter_i_seq_sol_bundle.search_info)
+            print('====')
             iter_solutions.append(iter_i_seq_sol_bundle)
     
             if len(iter_i_seq_sol_bundle.solutions) == 0:
@@ -566,13 +570,16 @@ if enable:
                 ])
     else:
         iter_i_seq_sol_bundle = progression_sequencing(model, grounded_supports, 
-            heuristic=heuristic, physical_tol=physical_tol,
+            heuristic=heuristic, physical_tol=physical_tol, constraint=constraint,
             stiffness=check_stiffness, verbose=verbose, max_time=max_time, 
             partial_orders=_partial_orders, 
             diversity=optimize_method=='diversity_search')
+        print(iter_i_seq_sol_bundle.search_info)
         iter_solutions.append(iter_i_seq_sol_bundle)
         if len(iter_i_seq_sol_bundle.solutions) > 0:
             best_solutions = iter_i_seq_sol_bundle
+    total_time = elapsed_time(start_time)
+    print 'total time: {:.2f}'.format(total_time)
     
     solution_bundles = None
     if best_solutions is not None:
@@ -581,11 +588,15 @@ if enable:
         print('Min solution cost: {}'.format(best_solutions.min_cost))
     else:
         print('No plan found with time limit {}, tolerance {}.'.format(
-            max_time, physical_tol))
+            max_time, physical_tol))    
     
     # save no matter a solution is found or not
     if save_solutions:
+        dir_path = os.path.dirname(os.path.abspath(save_path))
+        if not os.path.exists(dir_path):
+            os.mkdir(dir_path)
         data_dict = {
+            'total_time' : total_time,
             'solution_bundles' : [iter_sol_bundle.to_data() for iter_sol_bundle in iter_solutions],
         }
         with open(save_path, 'w') as fp:
@@ -596,7 +607,10 @@ else:
     with open(save_path, 'r') as fp:
         data_dict = json.load(fp)
         solution_bundles = [SeqSolutionBundle.from_data(sbd) for sbd in data_dict['solution_bundles']]
-        print('Solution bundles parsed from {}'.format(save_path))
+#        print('Solution bundles parsed from {} | total time {:.2f}'.format(save_path, data_dict['total_time']))
+        for sb in solution_bundles:
+            print('-- cost {}'.format(sb.min_cost))
+            print(sb.search_info)
         print solution_bundles
 
 if solution_bundles is not None:
