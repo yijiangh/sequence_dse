@@ -1,6 +1,4 @@
-# The much of the code in the sequencing part is adapted from https://github.com/caelan/pb-construction
-if not enable:
-    raise ValueError('Search not enabled.')
+﻿# The much of the code in the sequencing part is adapted from https://github.com/caelan/pb-construction
 
 import Rhino.Geometry.Point3d as Point3d
 import Grasshopper.DataTree as DataTree # Add, AddRange(list, GHPath(i, j))
@@ -12,6 +10,7 @@ from ghpythonlib.treehelpers import list_to_tree, tree_to_list
 ##############################
 
 import heapq
+import json
 import random
 import time
 import math
@@ -19,7 +18,80 @@ import copy
 from collections import namedtuple, OrderedDict, defaultdict, deque
 
 INF = 1e12
-DEFAULT_TRANS_TOL = 5e-2 # meter
+DEFAULT_PHYSICAL_TOL = 5e-2 # meter
+
+SEARCH_HEURISTIC = {
+    'random', 'z_distance', 'graph_distance',
+}
+OPTIMIZE_METHODS = {
+    'none', 'iterative_feasible_search', 'diversity_search',
+}
+
+class SeqSolution(object):
+    def __init__(self, seq, stepwise_physics_performance, cost, seq_id_map=None, search_info=None):
+        if seq_id_map is not None:
+            self.seq = [seq_id_map[s] for s in seq]
+        else:
+            self.seq = seq
+        self.stepwise_physics_performance = stepwise_physics_performance
+        self.cost = cost
+        self.search_info = search_info or {}
+
+    def to_data(self):
+        return {
+            'seq' : self.seq,
+            'stepwise_physics_performance' : self.stepwise_physics_performance,
+            'cost' : self.cost,
+            'search_info' : self.search_info,
+        }
+
+    @classmethod
+    def from_data(cls, data):
+        return cls(data['seq'],data['stepwise_physics_performance'],data['cost'],search_info=data['search_info'])
+
+class SeqSolutionBundle(object):
+    def __init__(self, solutions, search_info=None):
+        self.solutions = solutions or []
+        self.search_info = search_info or {}
+
+    def to_data(self):
+        return {
+            'solutions' : [sol.to_data() for sol in self.solutions],
+            'search_info' : self.search_info,
+        }
+
+    @classmethod
+    def from_data(cls, data):
+        return cls([SeqSolution.from_data(sd) for sd in data['solutions']], data['search_info'])
+
+    @property
+    def feasible_found(self):
+        return len(self.solutions) > 0
+
+    @property
+    def sorted_solutions(self):
+        return sorted(self.solutions, key=lambda sol: sol.cost)
+
+    @property
+    def best_solution(self):
+        if len(self.solutions) > 0:
+            return self.sorted_solutions[0]
+        else:
+            return None
+
+    @property
+    def costs(self):
+        return [s.cost for s in self.solutions]
+
+    @property
+    def min_cost(self):
+        if self.costs:
+            return min(self.costs)
+        else:
+            return None
+
+    def __repr__(self):
+        return 'Bundle: {} solutions, best cost {}'.format(len(self.solutions), self.min_cost)
 
 ##############################
 
@@ -41,7 +113,8 @@ def load_model(model, grounded_supports):
     ground_nodes = set()
     for k_supp in model.supports:
         for k_g in grounded_supports:
-            if k_supp.position.DistanceTo(k_g.position) < 1e-6:
+#            print(k_supp.position.DistanceTo(k_g.position))
+            if k_supp.position.DistanceTo(k_g.position) < 1e-4:
               ground_nodes.add(k_supp.node_ind)
     return element_from_id, node_points, ground_nodes
 
@@ -118,12 +191,12 @@ def compute_distance_from_node(elements, node_points, ground_nodes):
 #####################################
 
 def retrace_sequence(visited, current_state, horizon=INF):
-    (element, max_displacement), prev_state = visited[current_state]
+    (element, physical_behavior), prev_state = visited[current_state]
     if (prev_state is None) or (horizon == 0):
         # tracing reaches the end
         return []
     previous_elements = retrace_sequence(visited, prev_state, horizon=horizon-1)
-    return previous_elements + [(element, max_displacement)]
+    return previous_elements + [(element, physical_behavior)]
 
 def get_sequence_from_plan(plan):
     return [p[0] for p in plan]
@@ -143,8 +216,6 @@ def compute_candidate_elements(all_elements, ground_nodes, built_elements, use_t
     elements_from_node = get_node_neighbors(built_elements)
     nodes = compute_printed_nodes(ground_nodes, built_elements)
     for element in set(all_elements) - built_elements:
-#        for directed in get_directions(element):
-#        directed = element
         node1, node2 = element
         if (node1 not in nodes) and (node2 not in nodes):
             # element floating
@@ -152,15 +223,21 @@ def compute_candidate_elements(all_elements, ground_nodes, built_elements, use_t
         if not use_two_link_prune:
             yield element
         else:
-            if not (node1 in nodes and node2 in nodes):
+            prev_element_node = None
+            if not ((node1 in nodes) and (node2 in nodes)):
                 if node1 in nodes:
                     # if existing node is not grounded and is degree-one before adding the new element
                     # aka a two-link cantilever
                     if node1 not in ground_nodes and len(elements_from_node[node1]) == 1:
-                        continue
+                        prev_element_node = get_other_node(node1, list(elements_from_node[node1])[0])
+                        if prev_element_node not in ground_nodes:
+                            continue
                 else:
-                    if node2 in ground_nodes and len(elements_from_node[node2]) == 1:
-                        continue
+                    # node2 in nodes
+                    if node2 not in ground_nodes and len(elements_from_node[node2]) == 1:
+                        prev_element_node = get_other_node(node2, list(elements_from_node[node2])[0])
+                        if prev_element_node not in ground_nodes:
+                            continue
             yield element
 
 def compute_printed_nodes(ground_nodes, printed):
@@ -234,17 +311,11 @@ def get_midpoint(node_points, element):
 
 #######################################
 
-SEARCH_HEURISTIC = {
-    'random', 'z_distance', 'graph_distance',
-}
-
 def get_search_heuristic_fn(element_from_id, node_points, ground_nodes, heuristic='random', forward=True):
     sign = +1 if forward else -1
     all_elements = frozenset(element_from_id.values())
     distance_from_node = compute_distance_from_node(all_elements, node_points, ground_nodes)
     def h_fn(built_elements, element):
-#        element = get_undirected(all_elements, directed)
-        # return bias
         # lower bias will be dequed first
         if heuristic == 'random':
             return random.random()
@@ -258,7 +329,7 @@ def get_search_heuristic_fn(element_from_id, node_points, ground_nodes, heuristi
     return h_fn
 
 def add_successors(queue, all_elements, grounded_nodes, heuristic_fn, ordered_built_elements, 
-        incoming_from_element=None, verbose=False, solutions=[], violated_states=[]):
+        incoming_from_element=None, verbose=False, solutions=[], violated_states=[], random_tiebreak=False):
     built_elements = set(ordered_built_elements)
     remaining = all_elements - built_elements
     num_remaining = len(remaining) - 1
@@ -286,24 +357,23 @@ def add_successors(queue, all_elements, grounded_nodes, heuristic_fn, ordered_bu
         # `num_remaining` can be seen as the search node's "inverse" depth in the search tree
         # heapq will prioritize poping ones with lower num_remaining value first, 
         # which means the node is on a deeper lever of the search tree
-        priority = (num_remaining, bias) #, random.random())
+        if not random_tiebreak:
+            priority = (num_remaining, bias)
+        else:
+            priority = (num_remaining, bias, random.random())
         heapq.heappush(queue, (0, priority, ordered_built_elements, element))
 
 SearchState = namedtuple('SearchState', ['action', 'state'])
 
-#MAX_STATES_STORED = 20
-#RECORD_BT = True
-#RECORD_CONSTRAINT_VIOLATION = False
-
-def progression_sequencing(model, grounded_supports, heuristic='z_distance', stiffness=True, trans_tol=DEFAULT_TRANS_TOL, 
-        partial_orders=None, verbose=False, backtrack_limit=INF, max_time=INF, optimize=True):
+def progression_sequencing(model, grounded_supports, heuristic='z_distance', 
+        stiffness=True, physical_tol=DEFAULT_PHYSICAL_TOL, 
+        partial_orders=None, verbose=False, backtrack_limit=INF, max_time=INF, diversity=False):
     start_time = time.time()
-    
     ## * prepare data
     element_from_id, node_points, ground_nodes = load_model(model, grounded_supports)
     id_from_element = get_id_from_element_from_model(model)
     all_elements = frozenset(element_from_id.values())
-    assert len(ground_nodes) > 0
+    assert len(ground_nodes) > 0, "Number of marked grounded nodes is zero! Check inputs."
     heuristic_fn = get_search_heuristic_fn(element_from_id, node_points, ground_nodes, heuristic=heuristic)
     
     ## * initial state
@@ -322,42 +392,12 @@ def progression_sequencing(model, grounded_supports, heuristic='z_distance', sti
     num_evaluated = max_backtrack = stiffness_failures = 0
     cached_analysis = {}
     
-    #############################################
-    bt_data = []  # backtrack history
-    cons_data = []  # constraint violation history
-
-    def snapshot_state(data_list=None, reason='', queue_log_cnt=0):
-        """a lot of global parameters are used
-        """
-        cur_data = {}
-        cur_data['num_evaluated'] = num_evaluated # iter
-        cur_data['reason'] = reason
-        cur_data['elapsed_time'] = elapsed_time(start_time)
-        cur_data['min_remaining'] = min_remaining
-        cur_data['max_backtrack'] = max_backtrack
-
-        cur_data['stiffness_failures'] = stiffness_failures
-        
-        cur_data['backtrack'] = backtrack
-        cur_data['total_q_len'] = len(queue)
-        cur_data['chosen_element'] = element
-        planned_elements = retrace_sequence(visited, built_elements)
-        cur_data['planned_elements'] = planned_elements
-        cur_data['queue'] = []
-        if data_list is not None and len(data_list) < MAX_STATES_STORED:
-            data_list.append(cur_data)
-        return cur_data
-
-    # end snapshot
-    #############################################
-
+    # * main search queue
     best_solution_score = 1e8
     solutions = []
     while queue and (time.time() - start_time < max_time) :
         level, bias, built_elements, element = heapq.heappop(queue)
-        num_remaining = len(all_elements) - len(built_elements)
-#        element = get_undirected(all_elements, directed)
-        
+        num_remaining = len(all_elements) - len(built_elements)        
         num_evaluated += 1
         if num_remaining < min_remaining:
             min_remaining = num_remaining
@@ -365,19 +405,18 @@ def progression_sequencing(model, grounded_supports, heuristic='z_distance', sti
         backtrack = num_remaining - min_remaining
         if backtrack > max_backtrack:
             max_backtrack = backtrack
-            if RECORD_BT:
-                print('max backtrack increased to {}'.format(max_backtrack))
-                snapshot_state(bt_data, reason='Backtrack')
         if backtrack_limit < backtrack:
             print("Backtrack limit reached!")
-            break # continue
+            break
         
         if verbose:
-            print('Iteration: {} | Min Remain: {} | Built: {}/{} | Level: {} | PB: {} | Element: {} | Backtrack: {} | Stiffness failures: {} | Time: {:.3f}'.format(
+            print('Iteration: {} | Min Remain: {} | Built: {}/{} | Level: {} | PrevBuilt: {} | Element: {} | Backtrack: {} | Stiffness failures: {} | Time: {:.3f}'.format(
                 num_evaluated, min_remaining, len(built_elements), len(all_elements), 
-                level, [id_from_element[e] for e in built_elements], id_from_element[element], backtrack, stiffness_failures, elapsed_time(start_time)))
+                level, [id_from_element[e] for e in built_elements], id_from_element[element], 
+                backtrack, stiffness_failures, elapsed_time(start_time)))
         
-#        next_built_elements = built_elements | {element}
+        # we keep `built_elements` as an ordered set
+        assert element not in built_elements
         next_built_elements = built_elements + (element,)
         
         # * check constraint
@@ -385,44 +424,41 @@ def progression_sequencing(model, grounded_supports, heuristic='z_distance', sti
             if verbose: print('State visited before: {}'.format(next_built_elements))
             continue
         
-#        assert check_connected(ground_nodes, next_built_elements)
+        # no need to check connectivity here since the stiffness check should be able to capture that
+        # assert check_connected(ground_nodes, next_built_elements)
         max_displacement = INF
         if stiffness:
             built_element_set = frozenset(next_built_elements)
             if built_element_set not in cached_analysis:
                 existing_e_ids = get_extructed_ids(element_from_id, next_built_elements)
-                max_displacement = test_stiffness_fn(model, existing_e_ids, verbose=verbose)
-                cached_analysis[built_element_set] = max_displacement
+                physical_behavior = test_stiffness_fn(model, existing_e_ids, verbose=verbose)
+                cached_analysis[built_element_set] = physical_behavior
             else:
-                if verbose:
-                    print('reuse analysis!')
-                max_displacement = cached_analysis[built_element_set]
-            if max_displacement > trans_tol:
+                if verbose: print('reuse analysis!')
+                physical_behavior = cached_analysis[built_element_set]
+            chosen_metric = physical_behavior[0] if constraint == 'displacement' else physical_behavior[1]
+            if chosen_metric > physical_tol:
+                # the stiffness constraint is violated
                 if verbose:
                     print("Stiffness constraint violated: max val {:.4f} | tol {:.4f}".format(
-                    max_displacement, trans_tol))
-                # the stiffness constraint is violated
+                    chosen_metric, physical_tol))
                 stiffness_failures += 1
-                if RECORD_CONSTRAINT_VIOLATION:
-                    snapshot_state(cons_data, reason='stiffness_violation')
                 continue
         
             # check if max_displacement is bigger than the best score, we skip
-            # TODO generalize to arbitrary path_cost_fn
-            if optimize and (not store_worse_solution) and max_displacement > best_solution_score:
-#                print('Prune worse-performing branch {:.4f} | best {:.4f}.'.format(max_displacement, best_solution_score))
+            if diversity and chosen_metric > best_solution_score:
                 continue
         
-        # * record history
-        # SearchState(action, current state)
-        visited[next_built_elements] = SearchState((element, max_displacement), built_elements)
+        # * record history: SearchState(action, current state)
+        visited[next_built_elements] = SearchState((element, physical_behavior), built_elements)
         if all_elements <= set(next_built_elements):
             min_remaining = 0
             # a solution has been found!
             plan = retrace_sequence(visited, next_built_elements)
             seq = get_sequence_from_plan(plan)
             new_path_cost = compute_path_cost_fn(plan)
-            if not optimize:
+            if not diversity:
+                # if not doing diversity search, exit once a plan is found
                 heapq.heappush(solutions, (new_path_cost, plan))
                 break
             else:
@@ -430,21 +466,19 @@ def progression_sequencing(model, grounded_supports, heuristic='z_distance', sti
                 duplicated_plan = False
                 for _, prev_plan in solutions:
                     if get_sequence_from_plan(prev_plan) == seq:
-                        print('> Plan found before: {}'.format([id_from_element[e] for e in seq]))
+                        print('> Plan found before.') #.format([id_from_element[e] for e in seq]))
                         duplicated_plan = True
                         break
-                # exit the search if a duplicated plan is found
-                if duplicated_plan:
-                    break
-                if store_worse_solution or new_path_cost <= best_solution_score*(1+1e-6):
-                    print('!!! score {:.6f} | #of sols: {}|  better plan found: {}'.format(new_path_cost, len(solutions), 
-                        [id_from_element[e] for e in seq]))
+                assert not duplicated_plan, 'diversity search found a duplicated plan!'
+                
+                if new_path_cost <= best_solution_score*(1+1e-6):
+                    print('!!! score {:.6f} | #of sols: {}| runtime {:.3f}| better plan found.'.format(
+                        new_path_cost, len(solutions), elapsed_time(start_time)))
                     best_solution_score = new_path_cost
-                    # TODO can also not append if not a better solution
                     heapq.heappush(solutions, (new_path_cost, plan))
                 else:
-                    print('? score {:.6f} | #of sols: {}| not a better plan found: {}'.format(new_path_cost, len(solutions), 
-                        [id_from_element[e] for e in seq]))
+                    print('? score {:.6f} | #of sols: {}| runtime {:.3f} | not a better plan found.'.format(
+                        new_path_cost, len(solutions), elapsed_time(start_time)))
                 # clear the queue and restart the search
                 queue = []
                 visited = {initial_built : SearchState((None, None), None)}
@@ -456,65 +490,115 @@ def progression_sequencing(model, grounded_supports, heuristic='z_distance', sti
         add_successors(queue, all_elements, ground_nodes, heuristic_fn, next_built_elements, 
             incoming_from_element=incoming_from_element, verbose=verbose, solutions=solutions)
     
-    data = {
+    search_info = {
+        'diversity' : diversity,
         'planning_time' : elapsed_time(start_time),
         'num_evaluated': num_evaluated,
         'min_remaining': min_remaining,
         'max_backtrack': max_backtrack,
         'stiffness_failures': stiffness_failures,
-        #
     }
-    snapshot_data = {
-        'backtrack_history': bt_data,
-        'constraint_violation_history': cons_data,
-    }
-#    solutions = sorted(solutions, key=lambda path: compute_path_cost_fn(path))
-    return solutions, data, snapshot_data
-
+    seq_solutions = []
+    for sol_score, e_path in solutions:
+        seq = [ep[0] for ep in e_path]
+        phys_perf = [list(ep[1]) for ep in e_path]
+        seq_solutions.append(SeqSolution(seq, phys_perf, sol_score, id_from_element))
+    seq_sol_bundle = SeqSolutionBundle(seq_solutions, search_info)
+    return seq_sol_bundle
 
 ############################
 # main
 
+num_elements = Model_in.elems
 if enable:
     model = Model_in
     # clone the model and its list of elements to avoid side effects
     model = model.Clone()
     
+    # partial order for hierarchical assembly
     _partial_orders = tree_to_list(partial_orders, lambda x:x) if partial_orders.DataCount > 0 else []
-#    print(_partial_orders)
     
-#    nodal_translation_tol = nodal_translation_tol or 5e-2 # meter
-    element_solutions, data, snapshot_data = progression_sequencing(model, grounded_supports, 
-        heuristic=heuristic, trans_tol=nodal_translation_tol,
-        stiffness=check_stiffness, verbose=verbose, max_time=max_time, partial_orders=_partial_orders, optimize=optimize)
+    queue = deque([(0.0, physical_tol)])
+    iter_solutions = []
+    best_solutions = None
+    assert optimize_method in OPTIMIZE_METHODS
     
-    print(data)
-    print('Saved snapshot states (maximal stored state {}): BT state #{} | constraint violation state #{}'.format(
-        MAX_STATES_STORED, len(snapshot_data['backtrack_history']), len(snapshot_data['constraint_violation_history'])))
+    if optimize_method == 'iterative_feasible_search':
+        assert objective == constraint, "the optimal search only works when the objective and constraint are the same!"
+        while queue:
+            lower, higher = queue.popleft()
+            if lower > higher:
+                continue
+            if abs(higher-lower) < iter_search_eps:
+                print('({}, {}), search tol converge under {}'.format(lower, higher, iter_search_eps))
+                break
+            
+            half_tol = (lower + higher) / 2.
+            print('Interval ({}, {}): testing tol {}'.format(lower, higher, half_tol))
+            iter_i_seq_sol_bundle = progression_sequencing(model, grounded_supports, 
+                heuristic=heuristic, physical_tol=half_tol,
+                stiffness=check_stiffness, verbose=verbose, max_time=max_time, 
+                partial_orders=_partial_orders, 
+                diversity=optimize_method=='diversity_search')
+            
+            print('plan cost {} | search time {:.2f}'.format(
+                iter_i_seq_sol_bundle.min_cost, iter_i_seq_sol_bundle.search_info['planning_time']))
+            print(iter_i_seq_sol_bundle.search_info)
+            iter_solutions.append(iter_i_seq_sol_bundle)
     
-    id_from_element = get_id_from_element_from_model(model)
-    all_elements = frozenset(id_from_element.keys())
-    
-    solutions = [[(id_from_element[e], d) for e, d in e_path] for score, e_path in element_solutions]
-    solution_costs = [sdata[0] for sdata in element_solutions]
-
-    if len(solutions) != 0:
-        print('{} plan found!'.format(len(solutions))) 
+            if len(iter_i_seq_sol_bundle.solutions) == 0:
+                # no solution found, tol too small, should relax
+                queue.extend([
+                    (half_tol, higher),
+                ])
+            else:
+                # solution found
+                if best_solutions is None:
+                    # the first found solution
+                    best_solutions = iter_i_seq_sol_bundle
+                if best_solutions is not None and \
+                    iter_i_seq_sol_bundle.best_solution.cost < best_solutions.best_solution.cost:
+                    # update best solution
+                    best_solutions = iter_i_seq_sol_bundle
+                queue.extend([
+                    (lower, half_tol),
+                ])
     else:
-        print('No plan found with time limit {}, displacement tol {:.4f} [m], please check out the snapshot states!'.format(
-            max_time, nodal_translation_tol))
+        iter_i_seq_sol_bundle = progression_sequencing(model, grounded_supports, 
+            heuristic=heuristic, physical_tol=physical_tol,
+            stiffness=check_stiffness, verbose=verbose, max_time=max_time, 
+            partial_orders=_partial_orders, 
+            diversity=optimize_method=='diversity_search')
+        iter_solutions.append(iter_i_seq_sol_bundle)
+        if len(iter_i_seq_sol_bundle.solutions) > 0:
+            best_solutions = iter_i_seq_sol_bundle
     
-    BT_state = DataTree[System.Int32]()
-    cons_violated_state = DataTree[System.Int32]()
+    solution_bundles = None
+    if best_solutions is not None:
+        solution_bundles = [isol for isol in iter_solutions if isol.feasible_found]
+        print('{} feasible plans found!'.format(len(solution_bundles))) 
+        print('Min solution cost: {}'.format(best_solutions.min_cost))
+    else:
+        print('No plan found with time limit {}, tolerance {}.'.format(
+            max_time, physical_tol))
     
-    bt_data = snapshot_data['backtrack_history']
-    cons_data = snapshot_data['constraint_violation_history']
-    for i, bdata in enumerate(bt_data):
-        for e in bdata['planned_elements']:
-            BT_state.Add(id_from_element[e[0]], GHPath(i))
-    #        BT_state.Add(e[1], GHPath(i, 1))
-    for i, cdata in enumerate(cons_data):
-        for e in cdata['planned_elements']:
-            cons_violated_state.Add(id_from_element[e[0]], GHPath(i))
-    #        cons_violated_state.Add(e[1], GHPath(i,1))
-        cons_violated_state.Add(id_from_element[cdata['chosen_element']], GHPath(i))
+    # save no matter a solution is found or not
+    if save_solutions:
+        data_dict = {
+            'solution_bundles' : [iter_sol_bundle.to_data() for iter_sol_bundle in iter_solutions],
+        }
+        with open(save_path, 'w') as fp:
+            json.dump(data_dict, fp)
+        print('Solutions saved to {}'.format(save_path))
+else:
+    # parse solutions only
+    with open(save_path, 'r') as fp:
+        data_dict = json.load(fp)
+        solution_bundles = [SeqSolutionBundle.from_data(sbd) for sbd in data_dict['solution_bundles']]
+        print('Solution bundles parsed from {}'.format(save_path))
+        print solution_bundles
+
+if solution_bundles is not None:
+    # keep only the feasible ones, sort by costs
+    feasible_bundles = [isol for isol in solution_bundles if isol.feasible_found]
+    solution_bundles = sorted(feasible_bundles, key=lambda y: y.min_cost)

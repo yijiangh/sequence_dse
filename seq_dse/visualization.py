@@ -44,8 +44,8 @@ def save_seq_performance_plot(data_path: str, test_folder_name: str, design_id: 
     pdf_path = os.path.join(data_path, 'raw_imgs')
     mkdir(pdf_path)
     for constraint_type, fea_history in histories.items():
-        unit = '[kN/cm2]' if constraint_type == 'stress' else '[cm]'
-        scale = 1.0 if constraint_type == 'stress' else 100.0
+        unit = '[MPa]' if constraint_type == 'stress' else '[cm]'
+        scale = 10.0 if constraint_type == 'stress' else 100.0
 
         fig, ax = plt.subplots(figsize=(10, 3.5), layout='constrained')
         # figsize=(10, 2.5)
@@ -69,18 +69,19 @@ def save_seq_performance_plot(data_path: str, test_folder_name: str, design_id: 
         ax.set_xlabel('assembly steps')
         ax.set_ylabel('maximal {} {}'.format(constraint_type, unit))
 
-        if constraint_type != given_constraint_type:
+        # if constraint_type != given_constraint_type:
+        if constraint_type != "stress":
             # ax.set_ylim(bottom=0.0, top=0.5)
-            ax.set_ylim(bottom=0.0, top=0.2)
+            ax.set_ylim(bottom=0.0, top=1.8)
             # ax.set_ylim(bottom=0.0, top=max_fea + 0.5)
         else:
             # ax.set_ylim(bottom=0.0, top=5.0)
-            ax.set_ylim(bottom=0.0, top=1.8)
+            ax.set_ylim(bottom=0.0, top=2.0)
             # pass
 
-        plt.annotate('{:.2f}'.format(max_fea), xy=(max_id, max_fea), xytext=(max_id, max_fea+0.05), xycoords='data',
-                     arrowprops=dict(arrowstyle="->", lw=0.5), fontsize=28,
-                     )
+        # plt.annotate('{:.2f}'.format(max_fea), xy=(max_id, max_fea), xytext=(max_id, max_fea+0.05), xycoords='data',
+        #              arrowprops=dict(arrowstyle="->", lw=0.5), fontsize=28,
+        #              )
 
         # extraticks = [max_fea]
         # plt.yticks(list(plt.yticks()[0]) + extraticks);
